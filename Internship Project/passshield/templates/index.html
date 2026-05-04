@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PassShield — Password Strength Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #06080f;
+    --surface: #0d1117;
+    --surface2: #161b26;
+    --border: #1e2738;
+    --accent: #00e5ff;
+    --accent2: #ff3c6e;
+    --accent3: #ffe600;
+    --green: #00ff88;
+    --text: #c9d1e0;
+    --text-dim: #5a6a82;
+    --weak: #ff3c6e;
+    --moderate: #ffe600;
+    --strong: #00ff88;
+    --glow-cyan: 0 0 20px rgba(0,229,255,0.35);
+    --glow-red: 0 0 20px rgba(255,60,110,0.35);
+    --glow-green: 0 0 20px rgba(0,255,136,0.35);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .container {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 780px;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+    animation: fadeDown 0.6s ease;
+  }
+  .header-tag {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    opacity: 0.8;
+  }
+  .header h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(26px, 6vw, 48px);
+    font-weight: 900;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 60%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.1;
+  }
+  .header p {
+    margin-top: 12px;
+    color: var(--text-dim);
+    font-size: 15px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 32px;
+    margin-bottom: 16px;
+    position: relative;
+    animation: fadeUp 0.5s ease both;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.6;
+  }
+
+  /* Corner decorations */
+  .card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 20px; height: 20px;
+    border-bottom: 1px solid var(--accent);
+    border-right: 1px solid var(--accent);
+    opacity: 0.4;
+  }
+
+  .card-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    opacity: 0.7;
+  }
+
+  /* Input */
+  .input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  #password-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 16px 56px 16px 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 16px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    letter-spacing: 2px;
+    width: 100%;
+  }
+  #password-input:focus {
+    border-color: var(--accent);
+    box-shadow: var(--glow-cyan);
+  }
+  #password-input::placeholder {
+    color: var(--text-dim);
+    letter-spacing: 0;
+    font-size: 13px;
+  }
+
+  .toggle-btn {
+    position: absolute;
+    right: 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-dim);
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+  }
+  .toggle-btn:hover { color: var(--accent); }
+
+  /* Strength Meter */
+  .meter-section { margin-top: 24px; }
+  .meter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .meter-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .strength-badge {
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    transition: color 0.4s, text-shadow 0.4s;
+  }
+  .strength-badge.weak   { color: var(--weak);     text-shadow: 0 0 10px rgba(255,60,110,0.6); }
+  .strength-badge.moderate { color: var(--moderate); text-shadow: 0 0 10px rgba(255,230,0,0.6); }
+  .strength-badge.strong { color: var(--strong);   text-shadow: 0 0 10px rgba(0,255,136,0.6); }
+
+  .meter-bar-bg {
+    height: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 1px;
+    overflow: hidden;
+    position: relative;
+  }
+  .meter-bar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 1px;
+    transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1), background 0.4s;
+    background: var(--accent);
+    position: relative;
+  }
+  .meter-bar-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 20px;
+    background: rgba(255,255,255,0.3);
+    filter: blur(4px);
+  }
+  .meter-bar-fill.weak     { background: linear-gradient(90deg, #7a1a2e, var(--weak)); }
+  .meter-bar-fill.moderate { background: linear-gradient(90deg, #7a6a00, var(--moderate)); }
+  .meter-bar-fill.strong   { background: linear-gradient(90deg, #006644, var(--strong)); }
+
+  /* Segment bar */
+  .segment-bar {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .segment {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 1px;
+    transition: background 0.4s;
+  }
+  .segment.active.weak     { background: var(--weak); }
+  .segment.active.moderate { background: var(--moderate); }
+  .segment.active.strong   { background: var(--strong); }
+
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .stat-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 14px;
+    text-align: center;
+    transition: border-color 0.3s;
+  }
+  .stat-box:hover { border-color: var(--accent); }
+  .stat-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 6px;
+    transition: color 0.3s;
+  }
+  .stat-key {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  /* Checks */
+  .checks-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-dim);
+    transition: color 0.3s;
+  }
+  .check-item.pass { color: var(--green); }
+  .check-item.fail { color: var(--text-dim); }
+  .check-icon {
+    width: 18px;
+    height: 18px;
+    border: 1px solid currentColor;
+    border-radius: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 10px;
+    transition: all 0.3s;
+  }
+  .check-item.pass .check-icon {
+    background: rgba(0,255,136,0.1);
+    border-color: var(--green);
+    box-shadow: 0 0 8px rgba(0,255,136,0.3);
+  }
+
+  /* Patterns */
+  .patterns-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+    min-height: 32px;
+  }
+  .pattern-tag {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    border: 1px solid var(--accent2);
+    border-radius: 1px;
+    color: var(--accent2);
+    background: rgba(255,60,110,0.08);
+    letter-spacing: 1px;
+    animation: tagIn 0.3s ease;
+  }
+  .no-patterns {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  /* Feedback */
+  .feedback-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .feedback-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+    animation: feedbackIn 0.3s ease both;
+  }
+  .feedback-list li::before {
+    content: '▸';
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 1px;
+    font-size: 10px;
+  }
+  .feedback-list li.good::before { color: var(--green); }
+  .feedback-list li.warn::before { color: var(--accent2); }
+
+  /* Crack time */
+  .crack-time-display {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(18px, 4vw, 28px);
+    font-weight: 700;
+    color: var(--accent);
+    text-align: center;
+    margin: 8px 0 4px;
+    transition: color 0.4s;
+    word-break: break-word;
+  }
+  .crack-time-display.weak     { color: var(--weak); }
+  .crack-time-display.moderate { color: var(--moderate); }
+  .crack-time-display.strong   { color: var(--strong); }
+  .crack-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  /* Alerts */
+  .alert-box {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 2px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+    animation: fadeUp 0.3s ease;
+  }
+  .alert-box.danger {
+    display: flex;
+    border: 1px solid var(--accent2);
+    background: rgba(255,60,110,0.08);
+    color: var(--accent2);
+  }
+
+  /* Security badge */
+  .security-note {
+    text-align: center;
+    margin-top: 32px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    opacity: 0.5;
+  }
+  .security-note span { color: var(--accent); }
+
+  /* Divider */
+  .section-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .section-divider .label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    white-space: nowrap;
+    opacity: 0.7;
+  }
+  .section-divider .line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Loading pulse */
+  .loading {
+    display: none;
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .loading.active { display: block; }
+  .loading-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1s infinite;
+  }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes tagIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes feedbackIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.3; transform: scale(0.7); }
+  }
+  @keyframes glitch {
+    0%   { clip-path: inset(40% 0 61% 0); transform: translate(-2px); }
+    20%  { clip-path: inset(92% 0 1% 0);  transform: translate(2px); }
+    40%  { clip-path: inset(43% 0 1% 0);  transform: translate(-1px); }
+    60%  { clip-path: inset(25% 0 58% 0); transform: translate(2px); }
+    80%  { clip-path: inset(54% 0 7% 0);  transform: translate(-2px); }
+    100% { clip-path: inset(58% 0 43% 0); transform: translate(0); }
+  }
+
+  @media (max-width: 520px) {
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .checks-grid { grid-template-columns: 1fr; }
+    .card { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-tag">// Security Toolkit v2.0</div>
+    <h1>PassShield</h1>
+    <p>Entropy Analysis · Pattern Detection · Secure Learning</p>
+  </div>
+
+  <!-- Alert: common password -->
+  <div class="alert-box danger" id="common-alert">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    ⚠ BLACKLISTED — This password appears in known breach databases
+  </div>
+
+  <!-- Input Card -->
+  <div class="card" style="animation-delay:0.1s">
+    <div class="card-label">// Input Terminal</div>
+    <div class="input-wrapper">
+      <input type="password" id="password-input" placeholder="Enter password to analyze..." autocomplete="new-password" spellcheck="false"/>
+      <button class="toggle-btn" id="toggle-vis" title="Toggle visibility" aria-label="Toggle visibility">
+        <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Meter -->
+    <div class="meter-section">
+      <div class="meter-header">
+        <span class="meter-label">Signal Strength</span>
+        <span class="strength-badge" id="strength-badge">—</span>
+      </div>
+      <div class="meter-bar-bg">
+        <div class="meter-bar-fill" id="meter-fill"></div>
+      </div>
+      <div class="segment-bar" id="segment-bar">
+        <div class="segment" data-i="0"></div>
+        <div class="segment" data-i="1"></div>
+        <div class="segment" data-i="2"></div>
+        <div class="segment" data-i="3"></div>
+        <div class="segment" data-i="4"></div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-value" id="stat-entropy">—</div>
+        <div class="stat-key">Entropy (bits)</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="stat-score">—</div>
+        <div class="stat-key">Score / 100</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="stat-charset">—</div>
+        <div class="stat-key">Char Pool</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Crack Time Card -->
+  <div class="card" style="animation-delay:0.2s">
+    <div class="section-divider">
+      <div class="label">// Crack Time Estimate</div>
+      <div class="line"></div>
+    </div>
+    <div class="crack-time-display" id="crack-time">—</div>
+    <div class="crack-sub">at 10 billion guesses/second (GPU attack)</div>
+  </div>
+
+  <!-- Checks Card -->
+  <div class="card" style="animation-delay:0.25s">
+    <div class="section-divider">
+      <div class="label">// Rule Validation</div>
+      <div class="line"></div>
+    </div>
+    <div class="checks-grid">
+      <div class="check-item" id="chk-length">
+        <div class="check-icon">○</div>
+        <span>Min. 12 characters</span>
+      </div>
+      <div class="check-item" id="chk-lower">
+        <div class="check-icon">○</div>
+        <span>Lowercase (a–z)</span>
+      </div>
+      <div class="check-item" id="chk-upper">
+        <div class="check-icon">○</div>
+        <span>Uppercase (A–Z)</span>
+      </div>
+      <div class="check-item" id="chk-digit">
+        <div class="check-icon">○</div>
+        <span>Numbers (0–9)</span>
+      </div>
+      <div class="check-item" id="chk-symbol">
+        <div class="check-icon">○</div>
+        <span>Special characters</span>
+      </div>
+      <div class="check-item" id="chk-notcommon">
+        <div class="check-icon">○</div>
+        <span>Not in blacklist</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Patterns Card -->
+  <div class="card" style="animation-delay:0.3s">
+    <div class="section-divider">
+      <div class="label">// Pattern Detection</div>
+      <div class="line"></div>
+    </div>
+    <div class="patterns-list" id="patterns-list">
+      <span class="no-patterns">No input yet...</span>
+    </div>
+  </div>
+
+  <!-- Feedback Card -->
+  <div class="card" style="animation-delay:0.35s">
+    <div class="section-divider">
+      <div class="label">// Recommendations</div>
+      <div class="line"></div>
+    </div>
+    <ul class="feedback-list" id="feedback-list">
+      <li>Enter a password above to receive analysis</li>
+    </ul>
+  </div>
+
+  <!-- Security note -->
+  <div class="security-note">
+    <span>[ SECURE ]</span> — Passwords are never stored. Only SHA-256 hashes of weak passwords are retained for learning.
+  </div>
+</div>
+
+<script>
+  const input       = document.getElementById('password-input');
+  const toggleBtn   = document.getElementById('toggle-vis');
+  const eyeIcon     = document.getElementById('eye-icon');
+  const meterFill   = document.getElementById('meter-fill');
+  const strengthBadge = document.getElementById('strength-badge');
+  const crackTime   = document.getElementById('crack-time');
+  const statEntropy = document.getElementById('stat-entropy');
+  const statScore   = document.getElementById('stat-score');
+  const statCharset = document.getElementById('stat-charset');
+  const patternsList = document.getElementById('patterns-list');
+  const feedbackList = document.getElementById('feedback-list');
+  const commonAlert = document.getElementById('common-alert');
+  const segments    = document.querySelectorAll('.segment');
+
+  let debounceTimer = null;
+  let visible = false;
+
+  // Toggle visibility
+  toggleBtn.addEventListener('click', () => {
+    visible = !visible;
+    input.type = visible ? 'text' : 'password';
+    eyeIcon.innerHTML = visible
+      ? `<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`
+      : `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+  });
+
+  // Debounced analysis
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    if (!input.value) { resetUI(); return; }
+    debounceTimer = setTimeout(() => analyze(input.value), 280);
+  });
+
+  function resetUI() {
+    meterFill.style.width = '0%';
+    meterFill.className = 'meter-bar-fill';
+    strengthBadge.textContent = '—';
+    strengthBadge.className = 'strength-badge';
+    crackTime.textContent = '—';
+    crackTime.className = 'crack-time-display';
+    statEntropy.textContent = '—';
+    statScore.textContent = '—';
+    statCharset.textContent = '—';
+    patternsList.innerHTML = '<span class="no-patterns">No input yet...</span>';
+    feedbackList.innerHTML = '<li>Enter a password above to receive analysis</li>';
+    commonAlert.className = 'alert-box danger';
+    commonAlert.style.display = 'none';
+    segments.forEach(s => { s.className = 'segment'; });
+    document.querySelectorAll('.check-item').forEach(c => {
+      c.className = 'check-item';
+      c.querySelector('.check-icon').textContent = '○';
+    });
+  }
+
+  async function analyze(password) {
+    try {
+      const res = await fetch('/check-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json();
+      renderResult(data, password);
+    } catch (err) {
+      console.error('Analysis failed:', err);
+    }
+  }
+
+  function renderResult(data, password) {
+    const { entropy, strength, score, feedback, patterns_detected, is_common, previously_weak, crack_time, char_set_size } = data;
+    const cls = strength ? strength.toLowerCase() : 'weak';
+
+    // Alert
+    if (is_common || previously_weak) {
+      commonAlert.style.display = 'flex';
+    } else {
+      commonAlert.style.display = 'none';
+    }
+
+    // Meter
+    meterFill.style.width = Math.min(score, 100) + '%';
+    meterFill.className = `meter-bar-fill ${cls}`;
+
+    // Strength badge
+    strengthBadge.textContent = strength || '—';
+    strengthBadge.className = `strength-badge ${cls}`;
+
+    // Crack time
+    crackTime.textContent = crack_time || '—';
+    crackTime.className = `crack-time-display ${cls}`;
+
+    // Stats
+    statEntropy.textContent = entropy != null ? entropy : '—';
+    statScore.textContent = score != null ? score : '—';
+    statCharset.textContent = char_set_size || '—';
+
+    // Segments
+    const segCount = cls === 'weak' ? 1 : cls === 'moderate' ? 3 : 5;
+    segments.forEach((s, i) => {
+      s.className = 'segment' + (i < segCount ? ` active ${cls}` : '');
+    });
+
+    // Rule checks
+    setCheck('chk-length',   password.length >= 12);
+    setCheck('chk-lower',    /[a-z]/.test(password));
+    setCheck('chk-upper',    /[A-Z]/.test(password));
+    setCheck('chk-digit',    /\d/.test(password));
+    setCheck('chk-symbol',   /[^a-zA-Z0-9]/.test(password));
+    setCheck('chk-notcommon', !is_common && !previously_weak);
+
+    // Patterns
+    patternsList.innerHTML = '';
+    if (patterns_detected && patterns_detected.length > 0) {
+      const labels = {
+        repeated_characters: 'Repeated Chars',
+        sequential_letters: 'Sequential Letters',
+        sequential_digits: 'Sequential Digits',
+        keyboard_pattern: 'Keyboard Walk',
+        common_substitution: 'Leet-Speak Sub',
+        date_pattern: 'Date Pattern'
+      };
+      patterns_detected.forEach(p => {
+        const tag = document.createElement('div');
+        tag.className = 'pattern-tag';
+        tag.textContent = labels[p] || p;
+        patternsList.appendChild(tag);
+      });
+    } else {
+      patternsList.innerHTML = '<span class="no-patterns" style="color:var(--green)">✓ No patterns detected</span>';
+    }
+
+    // Feedback
+    feedbackList.innerHTML = '';
+    (feedback || []).forEach((msg, i) => {
+      const li = document.createElement('li');
+      li.textContent = msg;
+      li.style.animationDelay = (i * 0.05) + 's';
+      if (msg.startsWith('Great') || msg.startsWith('✓')) li.className = 'good';
+      if (msg.includes('avoid') || msg.includes('Avoid') || msg.includes('common') || msg.includes('weak')) li.className = 'warn';
+      feedbackList.appendChild(li);
+    });
+  }
+
+  function setCheck(id, passed) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'check-item ' + (passed ? 'pass' : 'fail');
+    el.querySelector('.check-icon').textContent = passed ? '✓' : '○';
+  }
+</script>
+</body>
+</html>
